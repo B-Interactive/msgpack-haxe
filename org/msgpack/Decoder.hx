@@ -9,6 +9,13 @@ import haxe.io.Eof;
 
 using Reflect;
 
+/**
+ * How to decode MessagePack maps:
+ * - AsMap: returns an IntMap or StringMap. No reflection, so it is safe with
+ *   DCE / `-final`. Recommended for native/C++.
+ * - AsObject: returns an anonymous object. Uses reflection. Kept for
+ *   backward compatibility.
+ */
 enum DecodeOption {
 	AsMap;
 	AsObject;
@@ -26,6 +33,15 @@ private class Pair {
 	}
 }
 
+/**
+ * MessagePack decoder.
+ *
+ * Pass a complete value in `b`. The decoder does no stream framing, so don't
+ * give it a partial buffer; you handle splitting messages yourself.
+ *
+ * Unsigned 64-bit (0xcf) is not decoded: it doesn't fit Haxe's signed Int64
+ * without losing precision, so the decoder throws instead.
+ */
 class Decoder {
 	var o:Dynamic;
 
@@ -59,7 +75,7 @@ class Decoder {
 				case 0xcc: return i.readByte  ();
 				case 0xcd: return i.readUInt16();
 				case 0xce: return i.readInt32 ();
-				case 0xcf: throw "UInt64 not supported";
+				case 0xcf: throw "MsgPack decode: unsigned 64-bit (0xcf) is not supported. Send such values as Float or Int64.";
 
 				// signed int
 				case 0xd0: return i.readInt8 ();
@@ -129,44 +145,37 @@ class Decoder {
 				if (pairs.length == 0)
 					return new StringMap();
 
-				switch(Type.typeof(pairs[0].k))
-				{
-					case TInt:
-						var out = new IntMap();
-						for (p in pairs){
-							switch(Type.typeof(p.k)){
-								case TInt:
-								default:  
-									throw "Error: Mixed key type when decoding IntMap";
-							}
-							
-							if (out.exists(p.k)) 
-								throw 'Error: Duplicate keys found => ${p.k}';
+				// Pick the map type from the first key: Int -> IntMap,
+				// String -> StringMap. Std.isOfType is used (not a class-name
+				// string compare) so DCE can't misroute string keys.
+				if (Type.typeof(pairs[0].k) == TInt) {
+					var out = new IntMap();
+					for (p in pairs) {
+						if (Type.typeof(p.k) != TInt)
+							throw "Error: Mixed key type when decoding IntMap";
 
-							out.set(p.k, p.v);
-						}
+						if (out.exists(p.k))
+							throw 'Error: Duplicate keys found => ${p.k}';
 
-						return out;
+						out.set(p.k, p.v);
+					}
 
-					case TClass(c) if (Type.getClassName(c) == "String"):
-						var out = new StringMap();
-						for (p in pairs){
-							switch(Type.typeof(p.k)){
-								case TClass(c) if (Type.getClassName(c) == "String"):
-								default: 
-									throw "Error: Mixed key type when decoding StringMap";
-							}
+					return out;
+				} else if (Std.isOfType(pairs[0].k, String)) {
+					var out = new StringMap();
+					for (p in pairs) {
+						if (!Std.isOfType(p.k, String))
+							throw "Error: Mixed key type when decoding StringMap";
 
-							if (out.exists(p.k)) 
-								throw 'Error: Duplicate keys found => ${p.k}';
-							
-							out.set(p.k, p.v);
-						}
+						if (out.exists(p.k))
+							throw 'Error: Duplicate keys found => ${p.k}';
 
-						return out;
+						out.set(p.k, p.v);
+					}
 
-					default:
-						throw "Error: Unsupported key Type";
+					return out;
+				} else {
+					throw "Error: Unsupported key Type";
 				}
 		}
 

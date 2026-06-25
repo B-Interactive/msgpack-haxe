@@ -4,8 +4,8 @@
   "license": "MIT",
   "tags": ["cross","serialization","msgpack"],
   "description": "MessagePack (http://msgpack.org) for HaXe",
-  "version": "1.15.1",
-  "releasenote": "Update deprecated Int64 getHigh() and getLow()",
+  "version": "1.16.0",
+  "releasenote": "DCE/-final-safe type checks, UTF-8 byte-length string framing, explicit unsigned 64-bit error, and a utest suite on C++ with Node cross-language tests.",
   "contributors": ["aaulia", "Type1J", "mcheshkov"],
   "dependencies": { }
 }

@@ -1,0 +1,15 @@
+# Build and RUN the suite on C++ with full dead-code elimination (-dce full).
+# This PROVES the reflection / Int64 type-dispatch in the encoder and the AsMap
+# string-key detection survive DCE at runtime (not merely at type-check), which
+# is the crux of the production-readiness work.
+#
+#   haxe tests_dce.hxml
+#
+-dce full
+-lib utest
+-lib hxcpp
+-cp .
+-cp tests
+-main org.msgpack.tests.MsgPackTests
+-cpp tests/cpp_dce
+-cmd echo "Running C++ (-dce full) tests..." && tests/cpp_dce/MsgPackTests

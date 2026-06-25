@@ -1,0 +1,5 @@
+# Generated C++ build output from the test hxml files.
+tests/cpp/
+tests/cpp_dce/
+# Throwaway cross-language parity material (temp dir + generated Node helper).
+tests_tmp_parity_*/

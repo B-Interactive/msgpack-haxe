@@ -1,0 +1,13 @@
+# Type-check the whole library + test suite for the C++ target WITHOUT emitting
+# any output (no C++ compiler required). Fast CI / DCE-shape check.
+#
+#   haxe tests_check.hxml
+#
+-debug
+-lib utest
+-lib hxcpp
+-cp .
+-cp tests
+-main org.msgpack.tests.MsgPackTests
+-cpp tests/cpp
+--no-output

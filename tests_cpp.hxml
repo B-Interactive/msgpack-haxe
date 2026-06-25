@@ -1,0 +1,19 @@
+# Build and run the msgpack-haxe test suite on the C++ (hxcpp) target.
+# This is the primary target for the library and exercises the type-coverage,
+# decode-contract, Int64-dispatch and Node cross-language parity tests.
+#
+#   haxe tests_cpp.hxml
+#
+# Requires: haxe, the utest and hxcpp haxelibs, and a working C++ toolchain.
+# The Node parity tests additionally need a `node` binary on PATH and an installed
+# @msgpack/msgpack module (set MSGPACK_NODE_MODULE to its absolute path, or let the
+# test walk up from the cwd to a node_modules/@msgpack/msgpack); when those are
+# absent the parity tests SKIP rather than fail.
+-debug
+-lib utest
+-lib hxcpp
+-cp .
+-cp tests
+-main org.msgpack.tests.MsgPackTests
+-cpp tests/cpp
+-cmd echo "Running C++ tests..." && tests/cpp/MsgPackTests-debug

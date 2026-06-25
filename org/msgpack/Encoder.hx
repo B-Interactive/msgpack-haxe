@@ -3,10 +3,19 @@ package org.msgpack;
 import haxe.Int64;
 import haxe.io.Bytes;
 import haxe.io.BytesOutput;
+import haxe.Constraints.IMap;
 
 using Reflect;
 
 
+/**
+ * MessagePack encoder. Turns a Haxe value (null, Bool, Int, Float, Int64,
+ * String, haxe.io.Bytes, Array, any IMap, or an anonymous object) into
+ * MessagePack bytes.
+ *
+ * Note: Haxe `Int` is signed 32-bit, so values >= 2^31 can't be written as an
+ * unsigned int32. Pass them as `Float` or `Int64` instead.
+ */
 class Encoder {
 
 	static private inline var FLOAT_SINGLE_MIN:Float = 1.40129846432481707e-45;
@@ -31,16 +40,16 @@ class Encoder {
 			case TInt     : writeInt(d);
 			case TFloat   : writeFloat(d);
 			
-			case TClass(c): 
-				switch (Type.getClassName(c)) {
-					case "haxe._Int64.___Int64" : writeInt64(d);
-					case "haxe.io.Bytes" : writeBinary(d);
-					case "String" : writeString(d);
-					case "Array"  : writeArray (d);
-					case "haxe.ds.IntMap" | "haxe.ds.StringMap" | "haxe.ds.UnsafeStringMap" : 
-					     writeMap(d);
-					default: throw 'Error: ${Type.getClassName(c)} not supported';
-				}
+			// Use runtime type checks, not class-name strings: DCE can strip
+			// those names and silently break detection. Check Int64 first, then
+			// Bytes/String/Array, then any Map via the IMap interface.
+			case TClass(c):
+				if (Int64.isInt64(d)) writeInt64(d);
+				else if (Std.isOfType(d, Bytes)) writeBinary(d);
+				else if (Std.isOfType(d, String)) writeString(d);
+				else if (Std.isOfType(d, Array)) writeArray(d);
+				else if (Std.isOfType(d, IMap)) writeMap(d);
+				else throw 'Error: ${Type.getClassName(c)} not supported';
 
 			case TObject  : writeObject(d);
 			case TEnum(e) : throw "Error: Enum not supported";
@@ -129,11 +138,14 @@ class Encoder {
 	}
 
 	inline function writeString(b:String) {
-		var length = b.length;
+		// The length prefix is the UTF-8 byte length, not the char count.
+		// Encode to Bytes first so multibyte strings work with other libraries.
+		var bytes = Bytes.ofString(b);
+		var length = bytes.length;
 		if (length < 0x20) {
 			// fix string
 			o.writeByte(0xa0 | length);
-		} else 
+		} else
 		if (length < 0x100) {
 			// string 8
 			o.writeByte(0xd9);
@@ -148,7 +160,7 @@ class Encoder {
 			o.writeByte(0xdb);
 			o.writeInt32(length);
 		}
-		o.writeString(b);
+		o.write(bytes);
 	}
 
 	inline function writeArray(d:Array<Dynamic>) {
@@ -204,7 +216,11 @@ class Encoder {
 	inline function writeObject(d:Dynamic) {
 		var f = d.fields();
 
-		writeMapLength(Lambda.count(f));
+		// Count inline to avoid a Lambda dependency.
+		var length = 0;
+		for (k in f) length++;
+
+		writeMapLength(length);
 		for (k in f) {
 			encode(k);
 			encode(d.field(k));
